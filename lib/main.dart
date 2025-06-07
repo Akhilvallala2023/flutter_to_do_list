@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'add_task_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -24,7 +23,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ✅ Model class (not a widget!)
 class Todo {
   String title;
   bool isCompleted;
@@ -106,20 +104,19 @@ class _TodoListScreenState extends State<TodoListScreen> {
     todo.startTime = DateTime.now();
 
     _timers[index] = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {
-        final now = DateTime.now();
-        final start = todo.startTime ?? now;
-        todo.elapsedTime += now.difference(start);
-        todo.startTime = now;
-      });
+      setState(() {}); // Refresh UI to show live time
     });
   }
 
   void _stopTimer(int index) {
+    final todo = _todos[index];
+    if (todo.startTime != null) {
+      todo.elapsedTime += DateTime.now().difference(todo.startTime!);
+    }
     _timers[index]?.cancel();
     _timers.remove(index);
-    _todos[index].isRunning = false;
-    _todos[index].startTime = null;
+    todo.isRunning = false;
+    todo.startTime = null;
   }
 
   void _stopAllTimers() {
@@ -128,6 +125,9 @@ class _TodoListScreenState extends State<TodoListScreen> {
     }
     _timers.clear();
     for (var todo in _todos) {
+      if (todo.isRunning && todo.startTime != null) {
+        todo.elapsedTime += DateTime.now().difference(todo.startTime!);
+      }
       todo.isRunning = false;
       todo.startTime = null;
     }
@@ -156,8 +156,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
   @override
   Widget build(BuildContext context) {
     int xpNeededForNextLevel = (_level + 1) * 50;
-    double progress =
-        xpNeededForNextLevel > 0 ? _currentXp / xpNeededForNextLevel : 0.0;
+    double progress = xpNeededForNextLevel > 0 ? _currentXp / xpNeededForNextLevel : 0.0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('To-Do List')),
@@ -165,10 +164,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
               children: [
                 Text('XP: $_currentXp'),
@@ -185,19 +181,18 @@ class _TodoListScreenState extends State<TodoListScreen> {
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text(
-              'To-Do',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            child: Text('To-Do', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
           Expanded(
             child: ListView.builder(
               itemCount: _todos.where((todo) => !todo.isCompleted).length,
               itemBuilder: (context, index) {
-                final incompleteTodos =
-                    _todos.where((todo) => !todo.isCompleted).toList();
+                final incompleteTodos = _todos.where((todo) => !todo.isCompleted).toList();
                 final todo = incompleteTodos[index];
                 final originalIndex = _todos.indexOf(todo);
+                final displayTime = todo.isRunning
+                    ? DateTime.now().difference(todo.startTime!) + todo.elapsedTime
+                    : todo.elapsedTime;
 
                 return ListTile(
                   title: Text(todo.title),
@@ -206,7 +201,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
                     children: [
                       Text(todo.category),
                       if (todo.isRunning || todo.elapsedTime > Duration.zero)
-                        Text('⏱ ${_formatDuration(todo.elapsedTime)}'),
+                        Text('⏱ ${_formatDuration(displayTime)}'),
                     ],
                   ),
                   trailing: Row(
@@ -235,18 +230,13 @@ class _TodoListScreenState extends State<TodoListScreen> {
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text(
-              'Completed',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            child: Text('Completed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
           Expanded(
             child: ListView.builder(
               itemCount: _todos.where((todo) => todo.isCompleted).length,
               itemBuilder: (context, index) {
-                final completedTodo = _todos
-                    .where((todo) => todo.isCompleted)
-                    .elementAt(index);
+                final completedTodo = _todos.where((todo) => todo.isCompleted).elementAt(index);
                 return ListTile(
                   title: Text(
                     completedTodo.title,
@@ -259,12 +249,8 @@ class _TodoListScreenState extends State<TodoListScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (completedTodo.completionTime != null)
-                        Text(
-                          'Completed at: ${_formatTime(completedTodo.completionTime!)}',
-                        ),
-                      Text(
-                        'Time spent: ${_formatDuration(completedTodo.elapsedTime)}',
-                      ),
+                        Text('Completed at: ${_formatTime(completedTodo.completionTime!)}'),
+                      Text('Time spent: ${_formatDuration(completedTodo.elapsedTime)}'),
                     ],
                   ),
                   leading: const Icon(Icons.check_circle, color: Colors.green),
@@ -310,13 +296,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   final TextEditingController _taskTitleController = TextEditingController();
   final TextEditingController _newCategoryController = TextEditingController();
   String _selectedCategory = 'Personal';
-  final List<String> _categories = [
-    'Personal',
-    'Work',
-    'Study',
-    'Health',
-    'Other',
-  ];
+  final List<String> _categories = ['Personal', 'Work', 'Study', 'Health', 'Other'];
 
   void _addNewCategory() {
     final newCat = _newCategoryController.text.trim();
@@ -352,26 +332,22 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [TextButton(onPressed: _submitTask, child: const Text('Add'))],
+        actions: [
+          TextButton(onPressed: _submitTask, child: const Text('Add')),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'TASK',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
+            const Text('TASK', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             TextField(
               controller: _taskTitleController,
               decoration: const InputDecoration(hintText: 'Enter task title'),
             ),
             const SizedBox(height: 16.0),
-            const Text(
-              'CATEGORY',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
+            const Text('CATEGORY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             DropdownButtonFormField<String>(
               value: _selectedCategory,
               onChanged: (String? newValue) {
@@ -381,19 +357,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   });
                 }
               },
-              items:
-                  _categories
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ),
-                      )
-                      .toList(),
+              items: _categories
+                  .map((category) => DropdownMenuItem(value: category, child: Text(category)))
+                  .toList(),
               decoration: InputDecoration(
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
               ),
             ),
             const SizedBox(height: 16.0),
@@ -402,16 +370,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 Expanded(
                   child: TextField(
                     controller: _newCategoryController,
-                    decoration: const InputDecoration(
-                      hintText: 'Add new category',
-                    ),
+                    decoration: const InputDecoration(hintText: 'Add new category'),
                   ),
                 ),
                 const SizedBox(width: 8.0),
-                ElevatedButton(
-                  onPressed: _addNewCategory,
-                  child: const Text('Add'),
-                ),
+                ElevatedButton(onPressed: _addNewCategory, child: const Text('Add')),
               ],
             ),
           ],
