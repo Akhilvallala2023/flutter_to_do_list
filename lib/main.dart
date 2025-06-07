@@ -53,6 +53,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
   final Map<int, Timer> _timers = {};
   int _currentXp = 0;
   int _level = 0;
+  String _currentView = 'To-Do List';
 
   void _addXpAndLevelUp(int xpToAdd) {
     setState(() {
@@ -65,10 +66,8 @@ class _TodoListScreenState extends State<TodoListScreen> {
   }
 
   void _addTodoItem(Todo task) {
-    setState(() {
-      _todos.add(task);
-      _todos.sort((a, b) => a.isCompleted ? 1 : -1);
-    });
+    _todos.add(task);
+    _todos.sort((a, b) => a.isCompleted ? 1 : -1);
   }
 
   void _removeTodoItem(int index) {
@@ -104,7 +103,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
     todo.startTime = DateTime.now();
 
     _timers[index] = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {}); // Refresh UI to show live time
+      setState(() {});
     });
   }
 
@@ -153,13 +152,45 @@ class _TodoListScreenState extends State<TodoListScreen> {
     super.dispose();
   }
 
+  void _selectView(String viewName) {
+    Navigator.pop(context); // Close drawer
+    setState(() {
+      _currentView = viewName;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     int xpNeededForNextLevel = (_level + 1) * 50;
     double progress = xpNeededForNextLevel > 0 ? _currentXp / xpNeededForNextLevel : 0.0;
 
+    final List<Todo> displayedTodos = _currentView == 'To-Do List'
+        ? _todos.where((todo) => !todo.isCompleted).toList()
+        : _todos.where((todo) => todo.isCompleted).toList();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('To-Do List')),
+      appBar: AppBar(
+        title: const Text('To-Do List'),
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blue),
+              child: Text('Menu'),
+            ),
+            ListTile(
+              title: const Text('To-Do List'),
+              onTap: () => _selectView('To-Do List'),
+            ),
+            ListTile(
+              title: const Text('Completed Tasks'),
+              onTap: () => _selectView('Completed Tasks'),
+            ),
+          ],
+        ),
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -181,86 +212,77 @@ class _TodoListScreenState extends State<TodoListScreen> {
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text('To-Do', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            child: Text('Tasks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: _todos.where((todo) => !todo.isCompleted).length,
+              itemCount: displayedTodos.length,
               itemBuilder: (context, index) {
-                final incompleteTodos = _todos.where((todo) => !todo.isCompleted).toList();
-                final todo = incompleteTodos[index];
+                final todo = displayedTodos[index];
                 final originalIndex = _todos.indexOf(todo);
-                final displayTime = todo.isRunning
-                    ? DateTime.now().difference(todo.startTime!) + todo.elapsedTime
-                    : todo.elapsedTime;
 
-                return ListTile(
-                  title: Text(todo.title),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(todo.category),
-                      if (todo.isRunning || todo.elapsedTime > Duration.zero)
-                        Text('⏱ ${_formatDuration(displayTime)}'),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          todo.isRunning ? Icons.pause : Icons.play_arrow,
-                          color: Colors.blue,
-                        ),
-                        onPressed: () => _toggleTimer(originalIndex),
-                      ),
-                      Checkbox(
-                        value: todo.isCompleted,
-                        onChanged: (bool? newValue) {
-                          if (newValue == true) {
-                            _toggleTodoComplete(originalIndex);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text('Completed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _todos.where((todo) => todo.isCompleted).length,
-              itemBuilder: (context, index) {
-                final completedTodo = _todos.where((todo) => todo.isCompleted).elementAt(index);
-                return ListTile(
-                  title: Text(
-                    completedTodo.title,
-                    style: const TextStyle(
-                      decoration: TextDecoration.lineThrough,
-                      color: Colors.grey,
+                if (_currentView == 'To-Do List') {
+                  final displayTime = todo.isRunning
+                      ? DateTime.now().difference(todo.startTime!) + todo.elapsedTime
+                      : todo.elapsedTime;
+
+                  return ListTile(
+                    title: Text(todo.title),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(todo.category),
+                        if (todo.isRunning || todo.elapsedTime > Duration.zero)
+                          Text('⏱ ${_formatDuration(displayTime)}'),
+                      ],
                     ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (completedTodo.completionTime != null)
-                        Text('Completed at: ${_formatTime(completedTodo.completionTime!)}'),
-                      Text('Time spent: ${_formatDuration(completedTodo.elapsedTime)}'),
-                    ],
-                  ),
-                  leading: const Icon(Icons.check_circle, color: Colors.green),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
-                      _removeTodoItem(_todos.indexOf(completedTodo));
-                    },
-                  ),
-                );
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            todo.isRunning ? Icons.pause : Icons.play_arrow,
+                            color: Colors.blue,
+                          ),
+                          onPressed: () => _toggleTimer(originalIndex),
+                        ),
+                        Checkbox(
+                          value: todo.isCompleted,
+                          onChanged: (bool? newValue) {
+                            if (newValue == true) {
+                              _toggleTodoComplete(originalIndex);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  return ListTile(
+                    title: Text(
+                      todo.title,
+                      style: const TextStyle(
+                        decoration: TextDecoration.lineThrough,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (todo.completionTime != null)
+                          Text('Completed at: ${_formatTime(todo.completionTime!)}'),
+                        Text('Time spent: ${_formatDuration(todo.elapsedTime)}'),
+                      ],
+                    ),
+                    leading: const Icon(Icons.check_circle, color: Colors.green),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        _removeTodoItem(_todos.indexOf(todo));
+                      },
+                    ),
+                  );
+                }
               },
             ),
           ),
@@ -276,7 +298,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
             if (result != null) {
               final String title = result['title'] ?? '';
               final String category = result['category'] ?? 'Personal';
-              _addTodoItem(Todo(title: title, category: category));
+              setState(() {
+                _addTodoItem(Todo(title: title, category: category));
+                _currentView = 'To-Do List';
+              });
             }
           });
         },
