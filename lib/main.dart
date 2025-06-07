@@ -170,7 +170,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('To-Do List'),
+        title: Text(_currentView),
       ),
       drawer: Drawer(
         child: ListView(
