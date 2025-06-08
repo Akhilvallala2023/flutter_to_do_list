@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'Calender_view.dart'; // 👈 make sure the filename is correct and matches your project
 
 void main() {
   runApp(const MyApp());
@@ -162,16 +163,16 @@ class _TodoListScreenState extends State<TodoListScreen> {
   @override
   Widget build(BuildContext context) {
     int xpNeededForNextLevel = (_level + 1) * 50;
-    double progress = xpNeededForNextLevel > 0 ? _currentXp / xpNeededForNextLevel : 0.0;
+    double progress =
+        xpNeededForNextLevel > 0 ? _currentXp / xpNeededForNextLevel : 0.0;
 
-    final List<Todo> displayedTodos = _currentView == 'To-Do List'
-        ? _todos.where((todo) => !todo.isCompleted).toList()
-        : _todos.where((todo) => todo.isCompleted).toList();
+    final List<Todo> displayedTodos =
+        _currentView == 'To-Do List'
+            ? _todos.where((todo) => !todo.isCompleted).toList()
+            : _todos.where((todo) => todo.isCompleted).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentView),
-      ),
+      appBar: AppBar(title: Text(_currentView)),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -188,6 +189,32 @@ class _TodoListScreenState extends State<TodoListScreen> {
               title: const Text('Completed Tasks'),
               onTap: () => _selectView('Completed Tasks'),
             ),
+            ListTile(
+              title: const Text('Calendar'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => CalendarScreen(
+                          tasks:
+                              _todos
+                                  .map(
+                                    (todo) => {
+                                      'date':
+                                          todo.completionTime ??
+                                          todo.startTime ??
+                                          DateTime.now(),
+                                      'todo': todo,
+                                    },
+                                  )
+                                  .toList(),
+                        ),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -195,7 +222,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Row(
               children: [
                 Text('XP: $_currentXp'),
@@ -212,7 +242,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text('Tasks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            child: Text(
+              'Tasks',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
           Expanded(
             child: ListView.builder(
@@ -222,9 +255,11 @@ class _TodoListScreenState extends State<TodoListScreen> {
                 final originalIndex = _todos.indexOf(todo);
 
                 if (_currentView == 'To-Do List') {
-                  final displayTime = todo.isRunning
-                      ? DateTime.now().difference(todo.startTime!) + todo.elapsedTime
-                      : todo.elapsedTime;
+                  final displayTime =
+                      todo.isRunning
+                          ? DateTime.now().difference(todo.startTime!) +
+                              todo.elapsedTime
+                          : todo.elapsedTime;
 
                   return ListTile(
                     title: Text(todo.title),
@@ -270,11 +305,18 @@ class _TodoListScreenState extends State<TodoListScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (todo.completionTime != null)
-                          Text('Completed at: ${_formatTime(todo.completionTime!)}'),
-                        Text('Time spent: ${_formatDuration(todo.elapsedTime)}'),
+                          Text(
+                            'Completed at: ${_formatTime(todo.completionTime!)}',
+                          ),
+                        Text(
+                          'Time spent: ${_formatDuration(todo.elapsedTime)}',
+                        ),
                       ],
                     ),
-                    leading: const Icon(Icons.check_circle, color: Colors.green),
+                    leading: const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                    ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
                       onPressed: () {
@@ -310,6 +352,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
   }
 }
 
+// AddTaskScreen remains unchanged
 class AddTaskScreen extends StatefulWidget {
   const AddTaskScreen({super.key});
 
@@ -321,7 +364,13 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   final TextEditingController _taskTitleController = TextEditingController();
   final TextEditingController _newCategoryController = TextEditingController();
   String _selectedCategory = 'Personal';
-  final List<String> _categories = ['Personal', 'Work', 'Study', 'Health', 'Other'];
+  final List<String> _categories = [
+    'Personal',
+    'Work',
+    'Study',
+    'Health',
+    'Other',
+  ];
 
   void _addNewCategory() {
     final newCat = _newCategoryController.text.trim();
@@ -357,22 +406,26 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          TextButton(onPressed: _submitTask, child: const Text('Add')),
-        ],
+        actions: [TextButton(onPressed: _submitTask, child: const Text('Add'))],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('TASK', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            const Text(
+              'TASK',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
             TextField(
               controller: _taskTitleController,
               decoration: const InputDecoration(hintText: 'Enter task title'),
             ),
             const SizedBox(height: 16.0),
-            const Text('CATEGORY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            const Text(
+              'CATEGORY',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
             DropdownButtonFormField<String>(
               value: _selectedCategory,
               onChanged: (String? newValue) {
@@ -382,11 +435,19 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   });
                 }
               },
-              items: _categories
-                  .map((category) => DropdownMenuItem(value: category, child: Text(category)))
-                  .toList(),
+              items:
+                  _categories
+                      .map(
+                        (category) => DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        ),
+                      )
+                      .toList(),
               decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
               ),
             ),
             const SizedBox(height: 16.0),
@@ -395,11 +456,16 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 Expanded(
                   child: TextField(
                     controller: _newCategoryController,
-                    decoration: const InputDecoration(hintText: 'Add new category'),
+                    decoration: const InputDecoration(
+                      hintText: 'Add new category',
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8.0),
-                ElevatedButton(onPressed: _addNewCategory, child: const Text('Add')),
+                ElevatedButton(
+                  onPressed: _addNewCategory,
+                  child: const Text('Add'),
+                ),
               ],
             ),
           ],
