@@ -49,6 +49,12 @@ A cross-platform mobile app built with Flutter that acts as a smart TODO manager
 - Dart SDK (3.2.0 or higher)
 - Android Studio / Xcode for mobile deployment
 
+### Images
+  ![image](https://github.com/user-attachments/assets/f56be234-b3db-4b03-8945-172a765d7859)
+![image](https://github.com/user-attachments/assets/7e2ec075-0fd0-473f-b4dd-234787a09ad0)
+![image](https://github.com/user-attachments/assets/e48bafdf-8491-484a-8227-de3319c6e10a)
+![image](https://github.com/user-attachments/assets/075dd043-ec5e-45b5-8de7-a41517f21cfb)
+
 ### Installation
 
 1. Clone the repository:
