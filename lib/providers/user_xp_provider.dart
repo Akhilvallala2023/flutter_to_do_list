@@ -56,6 +56,11 @@ class UserXpNotifier extends StateNotifier<UserXP> {
     _saveUserXP();
   }
   
+  // Alias for addXP for compatibility
+  Future<void> addXp(int amount) async {
+    addXP(amount);
+  }
+  
   // Reset daily XP (typically called at midnight)
   void resetDailyXP() {
     state = UserXP(

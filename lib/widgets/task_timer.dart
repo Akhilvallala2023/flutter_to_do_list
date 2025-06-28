@@ -7,14 +7,10 @@ import '../providers/task_provider.dart';
 
 class TaskTimer extends ConsumerStatefulWidget {
   final Task task;
-  final bool showControls;
-  final bool showSummary;
   
   const TaskTimer({
     Key? key,
     required this.task,
-    this.showControls = true,
-    this.showSummary = true,
   }) : super(key: key);
 
   @override
@@ -31,8 +27,8 @@ class _TaskTimerState extends ConsumerState<TaskTimer> {
     super.initState();
     _updateElapsedTime();
     
-    // Check if timer was already running
-    if (widget.task.timerStartedAt != null) {
+    // Automatically start timer if task is not completed
+    if (widget.task.status != TaskStatus.completed) {
       _startTimer();
     }
   }
@@ -71,16 +67,19 @@ class _TaskTimerState extends ConsumerState<TaskTimer> {
     });
   }
   
-  // Stop the timer
-  void _stopTimer() {
+  // Complete the task and stop timer
+  void _completeTask() {
     final taskNotifier = ref.read(tasksProvider.notifier);
     
-    // Update task in provider to stop timer
-    taskNotifier.stopTaskTimer(widget.task.id);
+    // Stop the timer first
+    if (_isRunning) {
+      taskNotifier.stopTaskTimer(widget.task.id);
+      _timer?.cancel();
+      _timer = null;
+    }
     
-    // Stop local timer
-    _timer?.cancel();
-    _timer = null;
+    // Mark task as completed
+    taskNotifier.completeTask(widget.task.id);
     
     setState(() {
       _isRunning = false;
@@ -98,50 +97,26 @@ class _TaskTimerState extends ConsumerState<TaskTimer> {
     return '$hours:$minutes:$seconds';
   }
   
-  // Calculate progress percentage if task has an estimated duration
-  double _calculateProgress() {
-    if (widget.task.duration == null || widget.task.duration!.inSeconds == 0) {
-      return 0.0;
-    }
-    
-    return _elapsed.inSeconds / widget.task.duration!.inSeconds;
-  }
-  
   @override
   Widget build(BuildContext context) {
-    final progress = _calculateProgress();
     final theme = Theme.of(context);
     
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.showSummary) ...[
-          Text(
-            'Time Tracked',
-            style: theme.textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-        ],
+        Text(
+          'Time Tracking',
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
         
         CircularPercentIndicator(
           radius: 50.0,
           lineWidth: 8.0,
-          percent: progress.isFinite && progress <= 1.0 ? progress : 0.0,
-          center: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _formatDuration(_elapsed),
-                style: theme.textTheme.titleMedium,
-              ),
-              if (widget.task.duration != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'of ${_formatDuration(widget.task.duration!)}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ],
+          percent: _isRunning ? 0.75 : 1.0, // Visual indicator only
+          center: Text(
+            _formatDuration(_elapsed),
+            style: theme.textTheme.titleMedium,
           ),
           progressColor: _isRunning ? Colors.green : theme.colorScheme.primary,
           backgroundColor: theme.colorScheme.surfaceVariant,
@@ -149,42 +124,28 @@ class _TaskTimerState extends ConsumerState<TaskTimer> {
           animationDuration: 300,
         ),
         
-        if (widget.showControls) ...[
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (!_isRunning)
-                ElevatedButton.icon(
-                  onPressed: _startTimer,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                )
-              else
-                ElevatedButton.icon(
-                  onPressed: _stopTimer,
-                  icon: const Icon(Icons.stop),
-                  label: const Text('Stop'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-            ],
-          ),
-        ],
+        const SizedBox(height: 16),
         
-        if (widget.showSummary && widget.task.timerSessions != null && widget.task.timerSessions!.isNotEmpty) ...[
-          const SizedBox(height: 16),
+        // Only show complete button if task is not completed
+        if (widget.task.status != TaskStatus.completed)
+          ElevatedButton.icon(
+            onPressed: _completeTask,
+            icon: const Icon(Icons.check_circle),
+            label: const Text('Complete Task'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(200, 45),
+            ),
+          )
+        else
           Text(
-            'Sessions: ${widget.task.timerSessions!.length}',
-            style: theme.textTheme.bodyMedium,
+            'Task Completed',
+            style: TextStyle(
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ],
       ],
     );
   }

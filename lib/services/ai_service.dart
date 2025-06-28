@@ -1,34 +1,32 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
 import '../models/journal_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// Provider for AI service
+final aiServiceProvider = Provider<AiService>((ref) {
+  return AiService(
+    openRouterApiKey: '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',
+  );
+});
 
 class AiService {
-  final Dio _dio = Dio();
-  final String _openRouterApiKey;
-  final String _openAiApiKey;
+  final String openRouterApiKey;
+  final String _openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
   
-  // Choose which API to use
-  static const bool _useOpenRouter = true;
+  AiService({
+    required this.openRouterApiKey,
+  });
   
-  // API endpoints
-  static const String _openRouterEndpoint = 'https://openrouter.ai/api/v1/chat/completions';
-  static const String _openAiEndpoint = 'https://api.openai.com/v1/chat/completions';
-  
-  // Get the appropriate API endpoint
-  String get _apiEndpoint => _useOpenRouter ? _openRouterEndpoint : _openAiEndpoint;
-  
-  // Get the appropriate API key
-  String get _apiKey => _useOpenRouter ? _openRouterApiKey : _openAiApiKey;
-  
-  // Get model name
-  String get _modelName => _useOpenRouter ? 'mistralai/mistral-7b-instruct' : 'gpt-3.5-turbo';
-  
-  AiService({required String openRouterApiKey, required String openAiApiKey}) 
-      : _openRouterApiKey = openRouterApiKey,
-        _openAiApiKey = openAiApiKey;
+  // Headers for OpenRouter API
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $openRouterApiKey',
+    'HTTP-Referer': 'https://smarttodo.app', // Replace with your app's domain
+    'X-Title': 'Smart Todo App',
+  };
   
   // Generate task suggestions based on existing tasks and calendar data
   Future<List<Task>> generateTaskSuggestions({
@@ -50,7 +48,7 @@ class AiService {
       );
       
       // Call the API
-      final response = await _callLlmApi(prompt);
+      final response = await _callOpenRouter(prompt);
       
       // Parse the response into Task objects
       return _parseTaskSuggestions(response);
@@ -61,7 +59,7 @@ class AiService {
   }
   
   // Generate a daily plan based on tasks and calendar events
-  Future<Map<String, dynamic>> generateDailyPlan({
+  Future<Map<String, dynamic>> generateScheduledDailyPlan({
     required List<Task> tasks,
     required List<Map<String, dynamic>> calendarEvents,
     required DateTime date,
@@ -75,7 +73,7 @@ class AiService {
       );
       
       // Call the API
-      final response = await _callLlmApi(prompt);
+      final response = await _callOpenRouter(prompt);
       
       // Parse the response into a structured plan
       return _parseDailyPlan(response);
@@ -92,7 +90,7 @@ class AiService {
       final prompt = _createSentimentAnalysisPrompt(journalText);
       
       // Call the API
-      final response = await _callLlmApi(prompt);
+      final response = await _callOpenRouter(prompt);
       
       // Parse the response
       return _parseSentimentAnalysis(response);
@@ -109,14 +107,40 @@ class AiService {
   // Generate a weekly summary
   Future<String> generateWeeklySummary(List<Journal> journals, List<Task> completedTasks) async {
     try {
-      // Create the prompt
-      final prompt = _createWeeklySummaryPrompt(journals, completedTasks);
+      // Format journals and tasks for the prompt
+      final journalEntries = journals.map((journal) => 
+        '${journal.date.toString().substring(0, 10)}: ${journal.content}'
+      ).join('\n\n');
       
-      // Call the API
-      return await _callLlmApi(prompt);
-    } catch (error) {
-      print('Error generating weekly summary: $error');
-      return 'Error generating weekly summary';
+      final taskEntries = completedTasks.map((task) => 
+        '${task.title} (${task.category}) - Completed on ${task.completedAt.toString().substring(0, 10)}'
+      ).join('\n');
+      
+      // Create the prompt
+      final prompt = '''
+      Based on the following journal entries and completed tasks from the past week, provide a concise weekly summary.
+      
+      JOURNAL ENTRIES:
+      $journalEntries
+      
+      COMPLETED TASKS:
+      $taskEntries
+      
+      Please provide:
+      1. A brief overview of the week
+      2. Key accomplishments
+      3. Areas that might need more focus next week
+      4. Any patterns or insights you notice
+      
+      Keep the summary concise, positive, and actionable.
+      ''';
+      
+      // Call the LLM
+      final response = await _callOpenRouter(prompt);
+      return response;
+    } catch (e) {
+      debugPrint('Error generating weekly summary: $e');
+      return 'Unable to generate summary at this time. Please try again later.';
     }
   }
   
@@ -211,67 +235,34 @@ Format your response as a valid JSON with:
 ''';
   }
   
-  // Create a prompt for weekly summary
-  String _createWeeklySummaryPrompt(List<Journal> journals, List<Task> completedTasks) {
-    final journalsStr = journals.map((journal) => 
-      '- ${journal.date.toString().substring(0, 10)}: ${journal.content.substring(0, journal.content.length > 100 ? 100 : journal.content.length)}...'
-    ).join('\n');
-    
-    final tasksStr = completedTasks.map((task) => 
-      '- ${task.title} (Category: ${task.category}, Completed: ${task.completedAt?.toString().substring(0, 16)})'
-    ).join('\n');
-    
-    return '''
-Create a concise weekly summary based on the user's journal entries and completed tasks.
-
-Journal Entries:
-$journalsStr
-
-Completed Tasks:
-$tasksStr
-
-Provide a summary that includes:
-1. Main accomplishments
-2. Patterns or trends in productivity
-3. Suggestions for the upcoming week
-4. Areas that might need more attention
-
-Keep the summary positive, motivational, and actionable.
-''';
-  }
-  
-  // Call the LLM API
-  Future<String> _callLlmApi(String prompt) async {
-    final headers = {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $_apiKey',
-    };
-    
-    if (_useOpenRouter) {
-      headers['HTTP-Referer'] = 'https://smart-todo-app.com';
-    }
-    
-    final body = jsonEncode({
-      'model': _modelName,
-      'messages': [
-        {'role': 'system', 'content': 'You are a helpful AI assistant for a smart todo app.'},
-        {'role': 'user', 'content': prompt},
-      ],
-      'temperature': 0.7,
-      'max_tokens': 1000,
-    });
-    
-    final response = await http.post(
-      Uri.parse(_apiEndpoint),
-      headers: headers,
-      body: body,
-    );
-    
-    if (response.statusCode == 200) {
-      final jsonResponse = jsonDecode(response.body);
-      return jsonResponse['choices'][0]['message']['content'];
-    } else {
-      throw Exception('Failed to call LLM API: ${response.statusCode} ${response.body}');
+  // Call OpenRouter API
+  Future<String> _callOpenRouter(String prompt) async {
+    try {
+      final body = jsonEncode({
+        'model': 'mistralai/mistral-7b-instruct',
+        'messages': [
+          {'role': 'user', 'content': prompt}
+        ],
+        'temperature': 0.7,
+        'max_tokens': 1000,
+      });
+      
+      final response = await http.post(
+        Uri.parse(_openRouterUrl),
+        headers: _headers,
+        body: body,
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['choices'][0]['message']['content'];
+      } else {
+        debugPrint('OpenRouter API error: ${response.statusCode}, ${response.body}');
+        throw Exception('Failed to get response from AI service');
+      }
+    } catch (e) {
+      debugPrint('Error calling OpenRouter: $e');
+      throw Exception('Failed to communicate with AI service');
     }
   }
   
@@ -392,6 +383,123 @@ Keep the summary positive, motivational, and actionable.
         return TaskPriority.low;
       default:
         return TaskPriority.medium;
+    }
+  }
+
+  // Suggest optimal timing for a new task based on past tasks
+  Future<Map<String, dynamic>> suggestTaskTiming(String taskTitle, List<Task> existingTasks) async {
+    try {
+      // Filter to completed tasks with timing data
+      final relevantTasks = existingTasks.where((task) => 
+        task.status == TaskStatus.completed && 
+        task.timerSessions != null && 
+        task.timerSessions!.isNotEmpty
+      ).toList();
+      
+      if (relevantTasks.isEmpty) {
+        return {
+          'suggestedStartTime': null,
+          'suggestedDuration': null,
+          'explanation': 'Not enough task history to make a suggestion.',
+          'confidence': 0.0,
+        };
+      }
+      
+      // Format tasks for the prompt
+      final taskData = relevantTasks.map((task) {
+        final totalDuration = task.calculateTotalTimerDuration().inMinutes;
+        final startTimeStr = task.startTime != null 
+            ? '${task.startTime!.hour}:${task.startTime!.minute.toString().padLeft(2, '0')}'
+            : 'unknown';
+            
+        return {
+          'title': task.title,
+          'category': task.category,
+          'startTime': startTimeStr,
+          'durationMinutes': totalDuration,
+          'priority': task.priority.toString().split('.').last,
+        };
+      }).toList();
+      
+      // Create the prompt
+      final prompt = '''
+      Based on the following completed tasks and their timing data, suggest the optimal start time and duration for a new task titled "$taskTitle".
+      
+      EXISTING TASKS:
+      ${jsonEncode(taskData)}
+      
+      Return a JSON object with the following structure:
+      {
+        "suggestedStartTime": "HH:MM" (24-hour format),
+        "suggestedDuration": minutes (integer),
+        "explanation": "brief explanation of why this timing is suggested",
+        "confidence": 0.0-1.0 (confidence score)
+      }
+      
+      Only return the JSON object, nothing else. If you can't make a confident suggestion, set confidence to 0.0.
+      ''';
+      
+      // Call the LLM
+      final response = await _callOpenRouter(prompt);
+      
+      // Parse the JSON response
+      try {
+        return jsonDecode(response);
+      } catch (e) {
+        debugPrint('Error parsing timing suggestion: $e');
+        return {
+          'suggestedStartTime': null,
+          'suggestedDuration': null,
+          'explanation': 'Unable to generate a timing suggestion.',
+          'confidence': 0.0,
+        };
+      }
+    } catch (e) {
+      debugPrint('Error suggesting task timing: $e');
+      return {
+        'suggestedStartTime': null,
+        'suggestedDuration': null,
+        'explanation': 'Error generating timing suggestion.',
+        'confidence': 0.0,
+      };
+    }
+  }
+
+  // Generate a simple daily plan based on pending tasks
+  Future<String> generateDailyPlan(List<Task> pendingTasks) async {
+    try {
+      // Format tasks for the prompt
+      final taskEntries = pendingTasks.map((task) {
+        final priority = task.priority.toString().split('.').last;
+        final estimatedDuration = task.duration != null 
+            ? '${task.duration!.inMinutes} minutes' 
+            : 'unknown duration';
+            
+        return '- ${task.title} (Priority: $priority, Category: ${task.category}, $estimatedDuration)';
+      }).join('\n');
+      
+      // Create the prompt
+      final prompt = '''
+      Based on the following pending tasks, create an optimized daily plan.
+      
+      PENDING TASKS:
+      $taskEntries
+      
+      Please provide:
+      1. A suggested schedule with specific time blocks
+      2. Task prioritization reasoning
+      3. Breaks and rest periods
+      4. Any tips for completing these tasks efficiently
+      
+      Format the schedule in a clear, easy-to-follow manner.
+      ''';
+      
+      // Call the LLM
+      final response = await _callOpenRouter(prompt);
+      return response;
+    } catch (e) {
+      debugPrint('Error generating daily plan: $e');
+      return 'Unable to generate a daily plan at this time. Please try again later.';
     }
   }
 } 

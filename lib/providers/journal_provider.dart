@@ -8,7 +8,6 @@ import 'task_provider.dart';
 final aiServiceProvider = Provider<AiService>((ref) {
   return AiService(
     openRouterApiKey: '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',
-    openAiApiKey: '' // OpenAI API key is not required when using OpenRouter
   );
 });
 

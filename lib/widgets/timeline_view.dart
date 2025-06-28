@@ -9,12 +9,14 @@ class TimelineView extends ConsumerWidget {
   final List<Task> tasks;
   final DateTime date;
   final Function(Task) onTaskTap;
+  final Function(DateTime)? onDateChanged;
   
   const TimelineView({
     super.key,
     required this.tasks,
     required this.date,
     required this.onTaskTap,
+    this.onDateChanged,
   });
   
   @override
@@ -39,12 +41,56 @@ class TimelineView extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Date header
+        // Date navigation
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Text(
-            DateFormat('EEEE, MMMM d').format(date),
-            style: Theme.of(context).textTheme.titleLarge,
+          child: Row(
+            children: [
+              // Previous day button
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () {
+                  if (onDateChanged != null) {
+                    onDateChanged!(date.subtract(const Duration(days: 1)));
+                  }
+                },
+              ),
+              
+              // Date display
+              Expanded(
+                child: GestureDetector(
+                  onTap: () async {
+                    if (onDateChanged != null) {
+                      final selectedDate = await showDatePicker(
+                        context: context,
+                        initialDate: date,
+                        firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      
+                      if (selectedDate != null) {
+                        onDateChanged!(selectedDate);
+                      }
+                    }
+                  },
+                  child: Text(
+                    DateFormat('EEEE, MMMM d').format(date),
+                    style: Theme.of(context).textTheme.titleLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              
+              // Next day button
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () {
+                  if (onDateChanged != null) {
+                    onDateChanged!(date.add(const Duration(days: 1)));
+                  }
+                },
+              ),
+            ],
           ),
         ),
         
@@ -70,6 +116,29 @@ class TimelineView extends ConsumerWidget {
                   for (final task in unscheduledTasks)
                     _buildUnscheduledTask(context, task),
                 ],
+                
+                // Empty state
+                if (tasks.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.event_available,
+                          size: 80,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No tasks scheduled for this day',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 
                 // Extra padding at bottom
                 const SizedBox(height: 100),
